@@ -31,9 +31,719 @@ for (file in deg_rdata_files) {
 }
 
 #all salmon_merged_gene_count
+# Define base path and linc_id values
+base_path <- "/scratch/Shares/rinn/lincxpress/"
+linc_ids <- c("GFP_12Sept2024", "BANCR", "HULC", "RP11", "CRNDE", "DANCR203", "FENDRR", "LINC00667", "LINC00847", "LINC01547", "HAGLR", "HEIH", "LINCPINT", "LINCROR", "LNCPRESS1", "PNKY")  # Replace with actual linc IDs
 
-#all salmon_merged_transcript_count
+# Loop through each linc_id and load data
+for (linc_id in linc_ids) {
+  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.gene_counts.tsv")
+  
+  if (file.exists(file_path)) {
+    cat("Loading:", file_path, "\n")
+    
+    # Create a dynamic variable name based on linc_id
+    var_name <- paste0("gene_counts_", linc_id)
+    
+    # Read the file and assign it to the dynamically created variable name
+    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
+  } else {
+    cat("File not found:", file_path, "\n")
+  }
+}
+
+
+#all salmon_merged_transcript_tpm
+for (linc_id in linc_ids) {
+  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.transcript_tpm.tsv")
+  
+  if (file.exists(file_path)) {
+    cat("Loading:", file_path, "\n")
+    
+    # Create a dynamic variable name based on linc_id
+    var_name <- paste0("transcript_tpm_", linc_id)
+    
+    # Read the file and assign it to the dynamically created variable name
+    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
+  } else {
+    cat("File not found:", file_path, "\n")
+  }
+}
 
 #all salmon_merged_gene_tpm
+for (linc_id in linc_ids) {
+  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.gene_tpm.tsv")
+  
+  if (file.exists(file_path)) {
+    cat("Loading:", file_path, "\n")
+    
+    # Create a dynamic variable name based on linc_id
+    var_name <- paste0("gene_tpm_", linc_id)
+    
+    # Read the file and assign it to the dynamically created variable name
+    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
+  } else {
+    cat("File not found:", file_path, "\n")
+  }
+}
+
+```
+
+#count plot
+```{r}
+#all salmon_merged_gene_count
+# Define base path and linc_id values
+base_path <- "/scratch/Shares/rinn/lincxpress/"
+linc_ids <- c("GFP_12Sept2024", "BANCR", "HULC", "RP11", "CRNDE", "DANCR203", "FENDRR", "LINC00667", "LINC00847", "LINC01547", "HAGLR", "HEIH", "LINCPINT", "LINCROR", "LNCPRESS1", "PNKY")  # Replace with actual linc IDs
+
+# Loop through each linc_id and load data
+for (linc_id in linc_ids) {
+  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.gene_counts.tsv")
+  
+  if (file.exists(file_path)) {
+    cat("Loading:", file_path, "\n")
+    
+    # Create a dynamic variable name based on linc_id
+    var_name <- paste0("gene_counts_", linc_id)
+    
+    # Read the file and assign it to the dynamically created variable name
+    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
+  } else {
+    cat("File not found:", file_path, "\n")
+  }
+}
+
+# Rename Specific Cell Lines in the Data. Since the linc_id is not always the same as the gene_name, we can create a mapping dictionary and rename them before proceeding with the analysis.
+# Define a mapping of linc_id to gene_name
+gene_name_map <- c(
+  "GFP_12Sept2024" = "GFP",
+  "RP11" = "RP11-1055B8.4",
+  "DANCR203" = "DANCR",
+  "PNKY" = "RP1-273N12.4",
+  "LINCPINT" = "LINC-PINT",
+  "LINCROR" = "LINC-ROR"
+)
+
+# Update the variable names dynamically
+renamed_counts <- list()
+
+# First, add all datasets with their original names
+for (linc_id in linc_ids) {
+  var_name <- paste0("gene_counts_", linc_id)
+  
+  if (exists(var_name)) {
+    renamed_counts[[var_name]] <- get(var_name)
+  }
+}
+
+# Now rename the ones that need renaming
+for (linc_id in names(gene_name_map)) {
+  old_name <- paste0("gene_counts_", linc_id)  # Original variable name
+  new_name <- paste0("gene_counts_", gene_name_map[linc_id])  # Updated name
+  
+  if (old_name %in% names(renamed_counts)) {
+    renamed_counts[[new_name]] <- renamed_counts[[old_name]]  # Rename dataset
+    renamed_counts[[old_name]] <- NULL  # Remove old name from the list
+  }
+}
+
+#Now, filter all datasets in renamed_counts based on genes_of_interest
+# Define genes of interest
+genes_of_interest <- c("BANCR", "HULC", "RP11-1055B8.4", "CRNDE", "DANCR", 
+                       "FENDRR", "LINC00667", "LINC00847", "LINC01547", 
+                       "HAGLR", "HEIH", "LINC-PINT", "LINC-ROR", "LNCPRESS1", "RP1-273N12.4")
+
+
+# Iterate over all renamed_counts datasets
+for (name in names(renamed_counts)) {
+  df <- renamed_counts[[name]]  # Extract dataset
+  
+  # Standardize column names if the dataset is "gene_counts_LINC-ROR"
+  if (name == "gene_counts_LINC-ROR") {
+    colnames(df) <- gsub("\\.", "_", colnames(df))  # Replace dots with underscores
+    renamed_counts[[name]] <- df  # Save the modified dataframe
+  }
+}
+
+# Now, proceed with filtering as before
+filtered_counts <- list()
+
+for (name in names(renamed_counts)) {
+  df <- renamed_counts[[name]]  # Extract dataset
+  
+  if ("gene_name" %in% colnames(df)) {  
+    filtered_counts[[name]] <- df[df$gene_name %in% genes_of_interest, ]  # Filter
+  } else {
+    cat("Skipping", name, "- `gene_name` column not found.\n")  # Debug message
+  }
+}
+
+# Use Reduce and full_join to merge all data frames in the list by gene_name
+combined_counts <- Reduce(function(x, y) full_join(x, y, by = "gene_name"), filtered_counts)
+
+# View the first few rows
+head(combined_counts)
+
+combined_counts_long <- combined_counts %>%
+    pivot_longer(
+        cols = -gene_name,  # all columns except gene_name
+        names_to = c("gene", "time", "replicate"),  # Separate the gene, time, and replicate from the column names
+        names_pattern = "(.*)_(\\d+)_([A-Za-z0-9]+)",  # Regex to match the gene, time, and replicate
+        values_to = "count"  # The new column where the values will go
+    )
+
+#GFP_vs_BANCR_data <- combined_counts_long %>%
+ #    filter(gene == "GFP"|gene == "BANCR")
+
+#GFP_vs_BANCR_data$time <- as.numeric(GFP_vs_BANCR_data$time)
+
+#ggplot(GFP_vs_BANCR_data, aes(x = time, y = count, color = gene, linetype = gene)) +
+#  geom_point(alpha = 0.7) +
+#  stat_summary(fun = mean, geom = "line") +
+#  facet_wrap(~ gene_name, scales = "free_y") +
+#  labs(
+#    x = "Time Point (h)", 
+#    y = "Counts", 
+#    color = "gene"
+#  ) +
+#  theme_minimal() +
+#  scale_color_manual(values = c("BANCR" = "darkred", "GFP" = "blue")) +
+#  scale_linetype_manual(values = c("BANCR" = "solid", "GFP" = "dashed")) +
+#  scale_x_continuous(breaks = unique(GFP_vs_BANCR_data$time)) +
+#  theme(
+#    aspect.ratio = 1,
+#    strip.text = element_text(size = 12)
+#  )
+
+#ggsave(
+#  path = "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/",
+#  filename = "BANCR_vs_GFP_counts.pdf",
+#  height = 20, width = 30, limitsize = FALSE
+#)
+
+# Define the list of genes you want to plot
+genes_of_interest <- c("GFP", "BANCR", "HULC", "CRNDE", "FENDRR", "LINC00667", 
+                       "LINC00847", "LINC01547", "HAGLR", "HEIH", "LNCPRESS1", 
+                       "RP11", "DANCR203", "PNKY", "LINCPINT", "LINC_ROR")
+
+# Filter the data to include only the genes of interest
+GFP_vs_linc_data <- combined_counts_long %>%
+  filter(gene %in% genes_of_interest)
+
+# Ensure 'time' is numeric
+GFP_vs_linc_data$time <- as.numeric(GFP_vs_linc_data$time)
+
+# Plot
+ggplot(GFP_vs_linc_data, aes(x = time, y = count, color = gene, linetype = gene)) +
+  geom_point(alpha = 0.7) +  # Plot points for each replicate
+  stat_summary(fun = mean, geom = "line") +  # Plot mean line
+  facet_wrap(~ gene_name, scales = "free_y") +  # Separate plots for each gene
+  labs(
+    x = "Time Point (h)", 
+    y = "Counts", 
+    color = "Gene"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("BANCR" = "darkred", "GFP" = "blue", 
+                                "HULC" = "seagreen", "CRNDE" = "purple", 
+                                "FENDRR" = "orange", "LINC00667" = "brown", 
+                                "LINC00847" = "gold2", "LINC01547" = "cyan", 
+                                "HAGLR" = "magenta", "HEIH" = "yellow4", 
+                                "LNCPRESS1" = "ivory4", "RP11" = "black", 
+                                "DANCR203" = "red", "PNKY" = "darkblue", 
+                                "LINCPINT" = "darkgreen", "LINC_ROR" = "darkorange")) +  # Set custom colors for each gene
+  scale_linetype_manual(values = c("BANCR" = "solid", "GFP" = "dashed", 
+                                   "HULC" = "dotdash", "CRNDE" = "dotted", 
+                                   "FENDRR" = "twodash", "LINC00667" = "solid", 
+                                   "LINC00847" = "longdash", "LINC01547" = "solid", 
+                                   "HAGLR" = "dashed", "HEIH" = "dotdash", 
+                                   "LNCPRESS1" = "dotted", "RP11" = "twodash", 
+                                   "DANCR203" = "solid", "PNKY" = "longdash", 
+                                   "LINCPINT" = "solid", "LINC_ROR" = "longdash")) +  # Set custom linetypes
+  scale_x_continuous(breaks = unique(GFP_vs_linc_data$time)) +  # Set x-axis breaks for time points
+  theme(
+    aspect.ratio = 1,  # Aspect ratio for the plot
+    strip.text = element_text(size = 12)  # Adjust facet labels font size
+  )
+
+# Save the plot as a PDF file
+ggsave(
+  path = "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/",
+  filename = "LINC_vs_GFP_Time_counts.pdf",
+  height = 20, width = 30, limitsize = FALSE
+)
+```
+
+#tpm plot
+```{r}
+#all salmon_merged_gene_tpm
+# Define base path and linc_id values
+base_path <- "/scratch/Shares/rinn/lincxpress/"
+linc_ids <- c("GFP_12Sept2024", "BANCR", "HULC", "RP11", "CRNDE", "DANCR203", "FENDRR", "LINC00667", "LINC00847", "LINC01547", "HAGLR", "HEIH", "LINCPINT", "LINCROR", "LNCPRESS1", "PNKY")  # Replace with actual linc IDs
+
+# Loop through each linc_id and load data
+for (linc_id in linc_ids) {
+  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.gene_tpm.tsv")
+  
+  if (file.exists(file_path)) {
+    cat("Loading:", file_path, "\n")
+    
+    # Create a dynamic variable name based on linc_id
+    var_name <- paste0("gene_tpm_", linc_id)
+    
+    # Read the file and assign it to the dynamically created variable name
+    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
+  } else {
+    cat("File not found:", file_path, "\n")
+  }
+}
+
+# Rename Specific Cell Lines in the Data. Since the linc_id is not always the same as the gene_name, we can create a mapping dictionary and rename them before proceeding with the analysis.
+# Define a mapping of linc_id to gene_name
+gene_name_map <- c(
+  "GFP_12Sept2024" = "GFP",
+  "RP11" = "RP11-1055B8.4",
+  "DANCR203" = "DANCR",
+  "PNKY" = "RP1-273N12.4",
+  "LINCPINT" = "LINC-PINT",
+  "LINCROR" = "LINC-ROR"
+)
+
+# Update the variable names dynamically
+renamed_tpm <- list()
+
+# First, add all datasets with their original names
+for (linc_id in linc_ids) {
+  var_name <- paste0("gene_tpm_", linc_id)
+  
+  if (exists(var_name)) {
+    renamed_tpm[[var_name]] <- get(var_name)
+  }
+}
+
+# Now rename the ones that need renaming
+for (linc_id in names(gene_name_map)) {
+  old_name <- paste0("gene_tpm_", linc_id)  # Original variable name
+  new_name <- paste0("gene_tpm_", gene_name_map[linc_id])  # Updated name
+  
+  if (old_name %in% names(renamed_tpm)) {
+    renamed_tpm[[new_name]] <- renamed_tpm[[old_name]]  # Rename dataset
+    renamed_tpm[[old_name]] <- NULL  # Remove old name from the list
+  }
+}
+
+#Now, filter all datasets in renamed_tpms based on genes_of_interest
+# Define genes of interest
+genes_of_interest <- c("BANCR", "HULC", "RP11-1055B8.4", "CRNDE", "DANCR", 
+                       "FENDRR", "LINC00667", "LINC00847", "LINC01547", 
+                       "HAGLR", "HEIH", "LINC-PINT", "LINC-ROR", "LNCPRESS1", "RP1-273N12.4")
+
+
+# Iterate over all renamed_tpms datasets
+for (name in names(renamed_tpm)) {
+  df <- renamed_tpm[[name]]  # Extract dataset
+  
+  # Standardize column names if the dataset is "gene_tpms_LINC-ROR"
+  if (name == "gene_tpms_LINC-ROR") {
+    colnames(df) <- gsub("\\.", "_", colnames(df))  # Replace dots with underscores
+    renamed_tpm[[name]] <- df  # Save the modified dataframe
+  }
+}
+
+# Now, proceed with filtering as before
+filtered_tpm <- list()
+
+for (name in names(renamed_tpm)) {
+  df <- renamed_tpm[[name]]  # Extract dataset
+  
+  if ("gene_name" %in% colnames(df)) {  
+    filtered_tpm[[name]] <- df[df$gene_name %in% genes_of_interest, ]  # Filter
+  } else {
+    cat("Skipping", name, "- `gene_name` column not found.\n")  # Debug message
+  }
+}
+
+# Use Reduce and full_join to merge all data frames in the list by gene_name
+combined_tpm <- Reduce(function(x, y) full_join(x, y, by = "gene_name"), filtered_tpm)
+
+# View the first few rows
+head(combined_tpm)
+
+combined_tpm_long <- combined_tpm %>%
+    pivot_longer(
+        cols = -gene_name,  # all columns except gene_name
+        names_to = c("gene", "time", "replicate"),  # Separate the gene, time, and replicate from the column names
+        names_pattern = "(.*)_(\\d+)_([A-Za-z0-9]+)",  # Regex to match the gene, time, and replicate
+        values_to = "tpm"  # The new column where the values will go
+    )
+
+# Define the list of genes you want to plot
+genes_of_interest <- c("GFP", "BANCR", "HULC", "CRNDE", "FENDRR", "LINC00667", 
+                       "LINC00847", "LINC01547", "HAGLR", "HEIH", "LNCPRESS1", 
+                       "RP11", "DANCR203", "PNKY", "LINCPINT", "LINC.ROR")
+
+# Filter the data to include only the genes of interest
+GFP_vs_linc_data <- combined_tpm_long %>%
+  filter(gene %in% genes_of_interest)
+
+# Ensure 'time' is numeric
+GFP_vs_linc_data$time <- as.numeric(GFP_vs_linc_data$time)
+
+# Plot
+ggplot(GFP_vs_linc_data, aes(x = time, y = tpm, color = gene, linetype = gene)) +
+  geom_point(alpha = 0.7) +  # Plot points for each replicate
+  stat_summary(fun = mean, geom = "line") +  # Plot mean line
+  facet_wrap(~ gene_name, scales = "free_y") +  # Separate plots for each gene
+  labs(
+    x = "Time Point (h)", 
+    y = "tpm", 
+    color = "Gene"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("BANCR" = "darkred", "GFP" = "blue", 
+                                "HULC" = "seagreen", "CRNDE" = "purple", 
+                                "FENDRR" = "orange", "LINC00667" = "brown", 
+                                "LINC00847" = "gold2", "LINC01547" = "cyan", 
+                                "HAGLR" = "magenta", "HEIH" = "yellow4", 
+                                "LNCPRESS1" = "ivory4", "RP11" = "black", 
+                                "DANCR203" = "red", "PNKY" = "darkblue", 
+                                "LINCPINT" = "darkgreen", "LINC_ROR" = "darkorange")) +  # Set custom colors for each gene
+  scale_linetype_manual(values = c("BANCR" = "solid", "GFP" = "dashed", 
+                                   "HULC" = "dotdash", "CRNDE" = "dotted", 
+                                   "FENDRR" = "twodash", "LINC00667" = "solid", 
+                                   "LINC00847" = "longdash", "LINC01547" = "solid", 
+                                   "HAGLR" = "dashed", "HEIH" = "dotdash", 
+                                   "LNCPRESS1" = "dotted", "RP11" = "twodash", 
+                                   "DANCR203" = "solid", "PNKY" = "longdash", 
+                                   "LINCPINT" = "solid", "LINC.ROR" = "longdash")) +  # Set custom linetypes
+  scale_x_continuous(breaks = unique(GFP_vs_linc_data$time)) +  # Set x-axis breaks for time points
+  theme(
+    aspect.ratio = 1,  # Aspect ratio for the plot
+    strip.text = element_text(size = 12)  # Adjust facet labels font size
+  )
+
+# Save the plot as a PDF file
+ggsave(
+  path = "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/",
+  filename = "LINC_vs_GFP_Time_tpm.pdf",
+  height = 20, width = 30, limitsize = FALSE
+)
+```
+
+#transcript tpm plot
+```{r}
+#all salmon_merged_gene_transcript_tpm
+# Define base path and linc_id values
+base_path <- "/scratch/Shares/rinn/lincxpress/"
+linc_ids <- c("GFP_12Sept2024", "BANCR", "HULC", "RP11", "CRNDE", "DANCR203", "FENDRR", "LINC00667", "LINC00847", "LINC01547", "HAGLR", "HEIH", "LINCPINT", "LINCROR", "LNCPRESS1", "PNKY")  # Replace with actual linc IDs
+
+# Loop through each linc_id and load data
+for (linc_id in linc_ids) {
+  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.transcript_tpm.tsv")
+  
+  if (file.exists(file_path)) {
+    cat("Loading:", file_path, "\n")
+    
+    # Create a dynamic variable name based on linc_id
+    var_name <- paste0("gene_transcript_tpm_", linc_id)
+    
+    # Read the file and assign it to the dynamically created variable name
+    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
+  } else {
+    cat("File not found:", file_path, "\n")
+  }
+}
+
+# Rename Specific Cell Lines in the Data. Since the linc_id is not always the same as the gene_name, we can create a mapping dictionary and rename them before proceeding with the analysis.
+# Define a mapping of linc_id to gene_name
+gene_name_map <- c(
+  "GFP_12Sept2024" = "GFP",
+  "RP11" = "RP11-1055B8.4",
+  "DANCR203" = "DANCR",
+  "PNKY" = "RP1-273N12.4",
+  "LINCPINT" = "LINC-PINT",
+  "LINCROR" = "LINC-ROR"
+)
+
+# Update the variable names dynamically
+renamed_transcript_tpm <- list()
+
+# First, add all datasets with their original names
+for (linc_id in linc_ids) {
+  var_name <- paste0("gene_transcript_tpm_", linc_id)
+  
+  if (exists(var_name)) {
+    renamed_transcript_tpm[[var_name]] <- get(var_name)
+  }
+}
+
+# Now rename the ones that need renaming
+for (linc_id in names(gene_name_map)) {
+  old_name <- paste0("gene_transcript_tpm_", linc_id)  # Original variable name
+  new_name <- paste0("gene_transcript_tpm_", gene_name_map[linc_id])  # Updated name
+  
+  if (old_name %in% names(renamed_transcript_tpm)) {
+    renamed_transcript_tpm[[new_name]] <- renamed_transcript_tpm[[old_name]]  # Rename dataset
+    renamed_transcript_tpm[[old_name]] <- NULL  # Remove old name from the list
+  }
+}
+
+#Now, filter all datasets in renamed_transcript_tpms based on genes_of_interest
+# Define genes of interest
+genes_of_interest <- c("BANCR", "HULC", "RP11-1055B8.4", "CRNDE", "DANCR", 
+                       "FENDRR", "LINC00667", "LINC00847", "LINC01547", 
+                       "HAGLR", "HEIH", "LINC-PINT", "LINC-ROR", "LNCPRESS1", "RP1-273N12.4")
+
+
+# Iterate over all renamed_transcript_tpms datasets
+for (name in names(renamed_transcript_tpm)) {
+  df <- renamed_transcript_tpm[[name]]  # Extract dataset
+  
+  # Standardize column names if the dataset is "gene_transcript_tpms_LINC-ROR"
+  if (name == "gene_transcript_tpms_LINC-ROR") {
+    colnames(df) <- gsub("\\.", "_", colnames(df))  # Replace dots with underscores
+    renamed_transcript_tpm[[name]] <- df  # Save the modified dataframe
+  }
+}
+
+# Now, proceed with filtering as before
+filtered_transcript_tpm <- list()
+
+for (name in names(renamed_transcript_tpm)) {
+  df <- renamed_transcript_tpm[[name]]  # Extract dataset
+  
+  if ("gene_name" %in% colnames(df)) {  
+    filtered_transcript_tpm[[name]] <- df[df$gene_name %in% genes_of_interest, ]  # Filter
+  } else {
+    cat("Skipping", name, "- `gene_name` column not found.\n")  # Debug message
+  }
+}
+
+# Use Reduce and full_join to merge all data frames in the list by gene_name
+combined_transcript_tpm <- Reduce(function(x, y) full_join(x, y, by = "gene_name"), filtered_transcript_tpm)
+
+# View the first few rows
+head(combined_transcript_tpm)
+
+combined_transcript_tpm_long <- combined_transcript_tpm %>%
+    pivot_longer(
+        cols = -gene_name,  # all columns except gene_name
+        names_to = c("gene", "time", "replicate"),  # Separate the gene, time, and replicate from the column names
+        names_pattern = "(.*)_(\\d+)_([A-Za-z0-9]+)",  # Regex to match the gene, time, and replicate
+        values_to = "transcript_tpm"  # The new column where the values will go
+    )
+
+# Define the list of genes you want to plot
+genes_of_interest <- c("GFP", "BANCR", "HULC", "CRNDE", "FENDRR", "LINC00667", 
+                       "LINC00847", "LINC01547", "HAGLR", "HEIH", "LNCPRESS1", 
+                       "RP11", "DANCR203", "PNKY", "LINCPINT", "LINC.ROR")
+
+# Filter the data to include only the genes of interest
+GFP_vs_linc_data <- combined_transcript_tpm_long %>%
+  filter(gene %in% genes_of_interest)
+
+# Ensure 'time' is numeric
+GFP_vs_linc_data$time <- as.numeric(GFP_vs_linc_data$time)
+
+# Plot
+ggplot(GFP_vs_linc_data, aes(x = time, y = transcript_tpm, color = gene, linetype = gene)) +
+  geom_point(alpha = 0.7) +  # Plot points for each replicate
+  stat_summary(fun = mean, geom = "line") +  # Plot mean line
+  facet_wrap(~ gene_name, scales = "free_y") +  # Separate plots for each gene
+  labs(
+    x = "Time Point (h)", 
+    y = "transcript_tpm", 
+    color = "Gene"
+  ) +
+  theme_minimal() +
+  scale_color_manual(values = c("BANCR" = "darkred", "GFP" = "blue", 
+                                "HULC" = "seagreen", "CRNDE" = "purple", 
+                                "FENDRR" = "orange", "LINC00667" = "brown", 
+                                "LINC00847" = "gold2", "LINC01547" = "cyan", 
+                                "HAGLR" = "magenta", "HEIH" = "yellow4", 
+                                "LNCPRESS1" = "ivory4", "RP11" = "black", 
+                                "DANCR203" = "red", "PNKY" = "darkblue", 
+                                "LINCPINT" = "darkgreen", "LINC_ROR" = "darkorange")) +  # Set custom colors for each gene
+  scale_linetype_manual(values = c("BANCR" = "solid", "GFP" = "dashed", 
+                                   "HULC" = "dotdash", "CRNDE" = "dotted", 
+                                   "FENDRR" = "twodash", "LINC00667" = "solid", 
+                                   "LINC00847" = "longdash", "LINC01547" = "solid", 
+                                   "HAGLR" = "dashed", "HEIH" = "dotdash", 
+                                   "LNCPRESS1" = "dotted", "RP11" = "twodash", 
+                                   "DANCR203" = "solid", "PNKY" = "longdash", 
+                                   "LINCPINT" = "solid", "LINC.ROR" = "longdash")) +  # Set custom linetypes
+  scale_x_continuous(breaks = unique(GFP_vs_linc_data$time)) +  # Set x-axis breaks for time points
+  theme(
+    aspect.ratio = 1,  # Aspect ratio for the plot
+    strip.text = element_text(size = 12)  # Adjust facet labels font size
+  )
+
+# Save the plot as a PDF file
+ggsave(
+  path = "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/",
+  filename = "LINC_vs_GFP_Time_transcript_tpm.pdf",
+  height = 20, width = 30, limitsize = FALSE
+)
+```
+
+
+```{r}
+#all salmon_merged_gene_transcript_tpm
+# Define base path and linc_id values
+base_path <- "/scratch/Shares/rinn/lincxpress/"
+linc_ids <- c("GFP_12Sept2024", "BANCR", "HULC", "RP11", "CRNDE", "DANCR203", "FENDRR", "LINC00667", "LINC00847", "LINC01547", "HAGLR", "HEIH", "LINCPINT", "LINCROR", "LNCPRESS1", "PNKY")  # Replace with actual linc IDs
+
+# Loop through each linc_id and load data
+for (linc_id in linc_ids) {
+  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.transcript_tpm.tsv")
+  
+  if (file.exists(file_path)) {
+    cat("Loading:", file_path, "\n")
+    
+    # Create a dynamic variable name based on linc_id
+    var_name <- paste0("gene_transcript_tpm_", linc_id)
+    
+    # Read the file and assign it to the dynamically created variable name
+    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
+  } else {
+    cat("File not found:", file_path, "\n")
+  }
+}
+
+# Loop through each linc_id and modify the corresponding data frame
+for (linc_id in linc_ids) {
+  # Create the dynamic variable name
+  var_name <- paste0("gene_transcript_tpm_", linc_id)
+  
+  # Check if the variable exists and apply the transformation
+  if (exists(var_name)) {
+    # Get the data frame
+    df <- get(var_name)
+    
+    # Convert row names to a column
+    df <- df %>%
+      rownames_to_column("transcript_id")
+    
+    # Reassign the modified data frame back to the same variable
+    assign(var_name, df)
+    
+    cat("Row names converted to column for:", var_name, "\n")
+  }
+}
+
+#BANCR=ENST00000624238.2 
+#CRNDE=ENST00000502066.7
+#BANCR203=ENST00000441504.2
+#FENDRR=ENST00000595886.1
+#HEIH=ENST00000623091.1
+#HAGLR=ENST00000416928.8
+#HULC=ENST00000503668.2
+#LINC00667=ENST00000668807.1
+#LINC00847=ENST00000653584.1
+#LINC01547=ENST00000667826.1
+#LINCPINT=ENST00000451786.5
+#LINCROR=ENST00000553704.3
+#LNCPRESS1=ENST00000429254.2
+#PNKY=ENST00000635423.1
+#RP11=ENST00000571724.3
+
+
+gene_transcript_tpm_BANCR <- gene_transcript_tpm_BANCR[gene_transcript_tpm_BANCR$transcript_id == "ENST00000624238.2", ]
+gene_transcript_tpm_CRNDE <- gene_transcript_tpm_CRNDE[gene_transcript_tpm_CRNDE$transcript_id == "ENST00000502066.7", ]
+gene_transcript_tpm_DANCR203 <- gene_transcript_tpm_DANCR203[gene_transcript_tpm_DANCR203$transcript_id == "ENST00000441504.2", ]
+gene_transcript_tpm_FENDRR <- gene_transcript_tpm_FENDRR[gene_transcript_tpm_FENDRR$transcript_id == "ENST00000595886.1", ]
+gene_transcript_tpm_HEIH <- gene_transcript_tpm_HEIH[gene_transcript_tpm_HEIH$transcript_id == "ENST00000623091.1", ]
+gene_transcript_tpm_HAGLR <- gene_transcript_tpm_HAGLR[gene_transcript_tpm_HAGLR$transcript_id == "ENST00000416928.8", ]
+gene_transcript_tpm_HULC <- gene_transcript_tpm_HULC[gene_transcript_tpm_HULC$transcript_id == "ENST00000503668.2", ]
+gene_transcript_tpm_LINC00667 <- gene_transcript_tpm_LINC00667[gene_transcript_tpm_LINC00667$transcript_id == "ENST00000668807.1", ]
+gene_transcript_tpm_LINC00847 <- gene_transcript_tpm_LINC00847[gene_transcript_tpm_LINC00847$transcript_id == "ENST00000653584.1", ]
+gene_transcript_tpm_LINC01547 <- gene_transcript_tpm_LINC01547[gene_transcript_tpm_LINC01547$transcript_id == "ENST00000667826.1", ]
+gene_transcript_tpm_LINCPINT <- gene_transcript_tpm_LINCPINT[gene_transcript_tpm_LINCPINT$transcript_id == "ENST00000451786.5", ]
+gene_transcript_tpm_LINCROR <- gene_transcript_tpm_LINCROR[gene_transcript_tpm_LINCROR$transcript_id == "ENST00000553704.3", ]
+gene_transcript_tpm_LNCPRESS1 <- gene_transcript_tpm_LNCPRESS1[gene_transcript_tpm_LNCPRESS1$transcript_id == "ENST00000429254.2", ]
+gene_transcript_tpm_PNKY <- gene_transcript_tpm_PNKY[gene_transcript_tpm_PNKY$transcript_id == "ENST00000635423.1", ]
+gene_transcript_tpm_RP11 <- gene_transcript_tpm_RP11[gene_transcript_tpm_RP11$transcript_id == "ENST00000571724.3", ]
+filtered_transcripts <- c("ENST00000624238.2", "ENST00000502066.7", "ENST00000441504.2", 
+                          "ENST00000595886.1", "ENST00000623091.1", "ENST00000416928.8", 
+                          "ENST00000503668.2", "ENST00000668807.1", "ENST00000653584.1", 
+                          "ENST00000667826.1", "ENST00000451786.5", "ENST00000553704.3", 
+                          "ENST00000429254.2", "ENST00000635423.1", "ENST00000571724.3")
+
+gene_transcript_tpm_GFP_12Sept2024 <- gene_transcript_tpm_GFP_12Sept2024[gene_transcript_tpm_GFP_12Sept2024$transcript_id %in% filtered_transcripts, ]
+
+```
+
+
+```{r}
+GFP_data <- gene_transcript_tpm_GFP_12Sept2024
+# Merge each dataset with GFP using transcript_id as the key
+combined_GFP_BANCR <- left_join(gene_transcript_tpm_BANCR, GFP_data, by = "transcript_id", suffix = c("_BANCR", "_GFP"))
+combined_GFP_CRNDE <- left_join(gene_transcript_tpm_CRNDE, GFP_data, by = "transcript_id", suffix = c("_CRNDE", "_GFP"))
+combined_GFP_DANCR203 <- left_join(gene_transcript_tpm_DANCR203, GFP_data, by = "transcript_id", suffix = c("_DANCR203", "_GFP"))
+combined_GFP_FENDRR <- left_join(gene_transcript_tpm_FENDRR, GFP_data, by = "transcript_id", suffix = c("_FENDRR", "_GFP"))
+combined_GFP_HEIH <- left_join(gene_transcript_tpm_HEIH, GFP_data, by = "transcript_id", suffix = c("_HEIH", "_GFP"))
+combined_GFP_HAGLR <- left_join(gene_transcript_tpm_HAGLR, GFP_data, by = "transcript_id", suffix = c("_HAGLR", "_GFP"))
+combined_GFP_HULC <- left_join(gene_transcript_tpm_HULC, GFP_data, by = "transcript_id", suffix = c("_HULC", "_GFP"))
+combined_GFP_LINC00667 <- left_join(gene_transcript_tpm_LINC00667, GFP_data, by = "transcript_id", suffix = c("_LINC00667", "_GFP"))
+combined_GFP_LINC00847 <- left_join(gene_transcript_tpm_LINC00847, GFP_data, by = "transcript_id", suffix = c("_LINC00847", "_GFP"))
+combined_GFP_LINC01547 <- left_join(gene_transcript_tpm_LINC01547, GFP_data, by = "transcript_id", suffix = c("_LINC01547", "_GFP"))
+combined_GFP_LINCPINT <- left_join(gene_transcript_tpm_LINCPINT, GFP_data, by = "transcript_id", suffix = c("_LINCPINT", "_GFP"))
+combined_GFP_LINCROR <- left_join(gene_transcript_tpm_LINCROR, GFP_data, by = "transcript_id", suffix = c("_LINCROR", "_GFP"))
+combined_GFP_LNCPRESS1 <- left_join(gene_transcript_tpm_LNCPRESS1, GFP_data, by = "transcript_id", suffix = c("_LNCPRESS1", "_GFP"))
+combined_GFP_PNKY <- left_join(gene_transcript_tpm_PNKY, GFP_data, by = "transcript_id", suffix = c("_PNKY", "_GFP"))
+combined_GFP_RP11 <- left_join(gene_transcript_tpm_RP11, GFP_data, by = "transcript_id", suffix = c("_RP11", "_GFP"))
+
+clean_data <- function(df, gene_name) {
+  df %>%
+    select(-matches("gene_id")) %>%  # Remove any gene_id column
+    pivot_longer(cols = -transcript_id, names_to = "condition", values_to = "TPM") %>%
+    mutate(
+      time = as.numeric(gsub(".*_(\\d+)_\\d+$", "\\1", condition)),  # Extract time correctly
+      gene = ifelse(grepl("^GFP_", condition), "GFP", gene_name)  # Assign correct gene name
+    ) %>%
+    mutate(gene = as.character(gene))  # Ensure 'gene' is character type
+}
+
+
+
+# Clean each merged dataset
+cleaned_GFP_BANCR <- clean_data(combined_GFP_BANCR, "BANCR")
+cleaned_GFP_CRNDE <- clean_data(combined_GFP_CRNDE, "CRNDE")
+cleaned_GFP_DANCR203 <- clean_data(combined_GFP_DANCR203, "DANCR203")
+cleaned_GFP_FENDRR <- clean_data(combined_GFP_FENDRR, "FENDRR")
+cleaned_GFP_HEIH <- clean_data(combined_GFP_HEIH, "HEIH")
+cleaned_GFP_HAGLR <- clean_data(combined_GFP_HAGLR, "HAGLR")
+cleaned_GFP_HULC <- clean_data(combined_GFP_HULC, "HULC")
+cleaned_GFP_LINC00667 <- clean_data(combined_GFP_LINC00667, "LINC00667")
+cleaned_GFP_LINC00847 <- clean_data(combined_GFP_LINC00847, "LINC00847")
+cleaned_GFP_LINC01547 <- clean_data(combined_GFP_LINC01547, "LINC01547")
+cleaned_GFP_LINCPINT <- clean_data(combined_GFP_LINCPINT, "LINCPINT")
+cleaned_GFP_LINCROR <- clean_data(combined_GFP_LINCROR, "LINCROR")
+cleaned_GFP_LNCPRESS1 <- clean_data(combined_GFP_LNCPRESS1, "LNCPRESS1")
+cleaned_GFP_PNKY <- clean_data(combined_GFP_PNKY, "PNKY")
+cleaned_GFP_RP11 <- clean_data(combined_GFP_RP11, "RP11")
+
+
+# Plotting directly
+ggplot(cleaned_GFP_RP11, aes(x = time, y = TPM, color = gene, linetype = gene)) +
+  geom_point(alpha = 0.7) +
+  stat_summary(fun = mean, geom = "line") +  # Mean line for each gene
+  labs(
+    x = "Time Point (h)", 
+    y = "TPM", 
+    color = "Gene", 
+    title = paste("Expression of", transcript_id)
+  ) +
+  scale_color_manual(values = c("GFP" = "blue", "RP11" = "darkred")) +
+  scale_linetype_manual(values = c("GFP" = "dashed", "RP11" = "solid")) +
+  scale_x_continuous(breaks = unique(cleaned_GFP_RP11$time)) +
+  theme_minimal()
+
+ ggsave(
+    filename = paste0("transcript_expression_RP11_vs_GFP.pdf"), 
+    path = "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures", 
+    height = 8, width = 10, units = "in", dpi = 300
+  )
+
 ```
 
