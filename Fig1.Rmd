@@ -1,0 +1,39 @@
+---
+title: "Figure1"
+author: "ML"
+date: "2025_02_12"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+#load DESeq2 output and raw data for all cell line
+```{r}
+#all dds
+dds_base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"# Define the base path
+
+dds_rdata_files <- list.files(path = dds_base_dir, pattern = "_LRT_res_df.RData$", 
+                          full.names = TRUE, recursive = TRUE)# Find all RData files matching the pattern in subdirectories
+
+for (file in dds_rdata_files) {
+  load(file)
+  cat("Loaded:", file, "\n")
+}# Load all matching files
+
+#all DEG
+deg_base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"
+
+deg_rdata_files <- list.files(path = deg_base_dir, pattern = "_rnaseq_list_for_atacseq.RData$", 
+                          full.names = TRUE, recursive = TRUE)
+
+for (file in deg_rdata_files) {
+  load(file)
+  cat("Loaded:", file, "\n")
+}
+
+#all salmon_merged_gene_count
+
+#all salmon_merged_transcript_count
+
+#all salmon_merged_gene_tpm
+```
+
