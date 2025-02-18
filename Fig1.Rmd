@@ -6,87 +6,9 @@ output: html_document
 editor_options: 
   chunk_output_type: console
 ---
-#load DESeq2 output and raw data for all cell line
+
 ```{r}
-#all dds
-dds_base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"# Define the base path
-
-dds_rdata_files <- list.files(path = dds_base_dir, pattern = "_LRT_res_df.RData$", 
-                          full.names = TRUE, recursive = TRUE)# Find all RData files matching the pattern in subdirectories
-
-for (file in dds_rdata_files) {
-  load(file)
-  cat("Loaded:", file, "\n")
-}# Load all matching files
-
-#all DEG
-deg_base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"
-
-deg_rdata_files <- list.files(path = deg_base_dir, pattern = "_rnaseq_list_for_atacseq.RData$", 
-                          full.names = TRUE, recursive = TRUE)
-
-for (file in deg_rdata_files) {
-  load(file)
-  cat("Loaded:", file, "\n")
-}
-
-#all salmon_merged_gene_count
-# Define base path and linc_id values
-base_path <- "/scratch/Shares/rinn/lincxpress/"
-linc_ids <- c("GFP_12Sept2024", "BANCR", "HULC", "RP11", "CRNDE", "DANCR203", "FENDRR", "LINC00667", "LINC00847", "LINC01547", "HAGLR", "HEIH", "LINCPINT", "LINCROR", "LNCPRESS1", "PNKY")  # Replace with actual linc IDs
-
-# Loop through each linc_id and load data
-for (linc_id in linc_ids) {
-  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.gene_counts.tsv")
-  
-  if (file.exists(file_path)) {
-    cat("Loading:", file_path, "\n")
-    
-    # Create a dynamic variable name based on linc_id
-    var_name <- paste0("gene_counts_", linc_id)
-    
-    # Read the file and assign it to the dynamically created variable name
-    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
-  } else {
-    cat("File not found:", file_path, "\n")
-  }
-}
-
-
-#all salmon_merged_transcript_tpm
-for (linc_id in linc_ids) {
-  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.transcript_tpm.tsv")
-  
-  if (file.exists(file_path)) {
-    cat("Loading:", file_path, "\n")
-    
-    # Create a dynamic variable name based on linc_id
-    var_name <- paste0("transcript_tpm_", linc_id)
-    
-    # Read the file and assign it to the dynamically created variable name
-    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
-  } else {
-    cat("File not found:", file_path, "\n")
-  }
-}
-
-#all salmon_merged_gene_tpm
-for (linc_id in linc_ids) {
-  file_path <- file.path(base_path, linc_id, "rnaseq/nextflow_results/star_salmon/salmon.merged.gene_tpm.tsv")
-  
-  if (file.exists(file_path)) {
-    cat("Loading:", file_path, "\n")
-    
-    # Create a dynamic variable name based on linc_id
-    var_name <- paste0("gene_tpm_", linc_id)
-    
-    # Read the file and assign it to the dynamically created variable name
-    assign(var_name, read.table(file_path, header = TRUE, sep = "\t", row.names = 1))
-  } else {
-    cat("File not found:", file_path, "\n")
-  }
-}
-
+setwd("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig1")
 ```
 
 #count plot
@@ -746,4 +668,166 @@ ggplot(cleaned_GFP_RP11, aes(x = time, y = TPM, color = gene, linetype = gene)) 
   )
 
 ```
+
+#Transgene Log2FC in GFP volcano
+```{r}
+load("/scratch/Shares/rinn/ML/RNAseq/GFP_12Sept2024/results/GFP_res_df.RData")
+
+genes_of_interest <- c("BANCR", "HULC", "RP11-1055B8.4", "CRNDE", "DANCR", 
+                       "FENDRR", "LINC00667", "LINC00847", "LINC01547", 
+                       "HAGLR", "HEIH", "LINC-PINT", "LINC-ROR", "LNCPRESS1", "RP1-273N12.4")
+
+
+filtered_GFP_res_df <- GFP_res_df %>%
+  filter(gene_name %in% genes_of_interest)
+sum(is.na(filtered_GFP_res_df$log2FoldChange))  
+sum(is.na(filtered_GFP_res_df$padj))  
+
+#change NA in log2FC = 0 and  NA in padj =1
+GFP_res_df <- GFP_res_df %>%
+  mutate(
+    log2FoldChange = ifelse(is.na(log2FoldChange), 0, log2FoldChange),
+    padj = case_when(
+      is.na(padj) ~ 1,
+      TRUE ~ padj
+    )
+  )
+
+ # Calculate the maximum fold-change in any one timepoint
+  GFP_maxfc <- GFP_res_df %>%
+    group_by(gene_id) %>%
+    summarize(max_fc = max(abs(log2FoldChange))) 
+  
+  # merge max shrnklfc into dataframe
+  GFP_res_df <- GFP_res_df %>%
+    left_join(GFP_maxfc)
+  
+  #calculate z-score
+  GFP_res_df_padj0.05 <- GFP_res_df %>% 
+  filter(padj <= 0.01)
+  GFP_sig <- GFP_res_df_padj0.05 %>%
+  filter(baseMean >= 10)
+  GFP_sig <- GFP_sig %>%
+  mutate(zscore = as.numeric(scale(max_fc, center = TRUE, scale = TRUE))) 
+
+# Define a meaningful Z-score cutoff (e.g., |Z| ≥ 2)
+find_zscore <- GFP_sig %>%
+  filter(abs(zscore) >= 2)
+
+# Get the threshold max_fc at Z-score ±2
+largest_max_fc <- min(find_zscore$max_fc, na.rm = TRUE)  
+
+# Filter genes based on the threshold
+GFP_sig <- GFP_sig %>%
+  filter(max_fc >= largest_max_fc)
+print(length(unique(GFP_sig$gene_id))) #456
+
+# Filter genes in gene_list and select only the row with max_fc for each gene
+GFP_res_df <- GFP_res_df %>%
+  group_by(gene_name) %>%
+  filter(abs(log2FoldChange) == max_fc) %>%  # Keep only the row where log2FC matches max_fc
+  ungroup() %>%
+  distinct(gene_name, .keep_all = TRUE) 
+
+# Add significance column
+GFP_res_df <- GFP_res_df %>%
+  mutate(
+    significant = case_when(
+      padj <= 0.01 & log2FoldChange >= 1  ~ "Upregulated",
+      padj <= 0.01 & log2FoldChange <= -1 ~ "Downregulated",
+      TRUE ~ "Not Significant"
+    )
+  )
+
+# Calculate the number of upregulated and downregulated genes
+upregulated_count <- GFP_res_df %>% 
+  filter(significant == "Upregulated") %>% 
+  nrow()
+
+downregulated_count <- GFP_res_df %>% 
+  filter(significant == "Downregulated") %>% 
+  nrow()
+
+
+# Modify the 'significant' column to assign a different color for genes of interest
+GFP_res_df <- GFP_res_df %>%
+  mutate(
+    Transgenes = ifelse(gene_name %in% genes_of_interest, "Transgenes", significant)
+  )
+
+# Volcano plot with highlighted genes of interest on top
+ggplot() +
+  # Plot all points first
+  geom_point(data = GFP_res_df, aes(x = log2FoldChange, y = -log10(padj), color = Transgenes), alpha = 0.6, size = 1.5) +
+  # Plot the highlighted dots on top (last layer)
+  geom_point(data = GFP_res_df %>% filter(gene_name %in% genes_of_interest), 
+             aes(x = log2FoldChange, y = -log10(padj)), 
+             color = "black", size = 2, alpha = 1) +  # Highlighted dots on top
+  # Add text labels for genes of interest without lines
+  geom_text_repel(
+    data = GFP_res_df %>% filter(gene_name %in% genes_of_interest), 
+    aes(x = log2FoldChange, y = -log10(padj), label = gene_name),
+    size = 3, 
+    fontface = "bold",
+    color = "black",
+    box.padding = 0.5,     # Adds space around labels
+    point.padding = 0.3,   # Adds space between label and dot
+    force = 5,             # Stronger repulsion
+    direction = "both",    # Allows movement in all directions
+    max.overlaps = Inf
+  ) +
+  scale_color_manual(values = c("Upregulated" = "red3", "Downregulated" = "blue3", 
+                                "Not Significant" = "grey85", "Transgenes" = "black")) +
+  labs(title = "Volcano Plot of Transgenes in GFP",
+       x = "Log2 Fold Change",
+       y = "-Log10 Adjusted p-value") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "black") +
+  geom_hline(yintercept = -log10(0.01), linetype = "dashed", color = "black")
+
+# Volcano plot with highlighted genes of interest on top
+ggplot() +
+  # Plot all points first
+  geom_point(data = GFP_res_df, aes(x = log2FoldChange, y = -log10(padj), color = Transgenes), alpha = 0.6, size = 1.5) +
+  # Plot the highlighted dots on top (last layer)
+  geom_point(data = GFP_res_df %>% filter(gene_name %in% genes_of_interest), 
+             aes(x = log2FoldChange, y = -log10(padj)), 
+             color = "black", size = 2, alpha = 1) +  # Highlighted dots on top
+  # Add text labels for genes of interest without lines
+  geom_text_repel(
+    data = GFP_res_df %>% filter(gene_name %in% genes_of_interest), 
+    aes(x = log2FoldChange, y = -log10(padj), label = gene_name),
+    size = 3, 
+    fontface = "bold",
+    color = "black",
+    box.padding = 0.5,     # Adds space around labels
+    point.padding = 0.3,   # Adds space between label and dot
+    force = 5,             # Stronger repulsion
+    direction = "both",    # Allows movement in all directions
+    max.overlaps = Inf
+  ) +
+  scale_color_manual(values = c("Upregulated" = "red3", "Downregulated" = "blue3", 
+                                "Not Significant" = "grey85", "Transgenes" = "black")) +
+  labs(title = "Volcano Plot of Transgenes in GFP",
+       x = "Log2 Fold Change",
+       y = "-Log10 Adjusted p-value") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  geom_vline(xintercept = c(-1, 1), linetype = "dashed", color = "black") +
+  geom_hline(yintercept = -log10(0.01), linetype = "dashed", color = "black") +
+  # Add text annotations for upregulated and downregulated counts
+  annotate("text", x = 15, y = 250, 
+           label = paste("Upregulated:", upregulated_count), size = 4, color = "red3") +
+  annotate("text", x = -15, y = 250, 
+           label = paste("Downregulated:", downregulated_count), size = 4, color = "blue3")
+
+ggsave(
+  path = "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig1/",
+  filename = "GFP_transgene_volcano.pdf",
+  height = 10, width = 10, limitsize = FALSE
+)
+
+```
+
 
