@@ -16,46 +16,48 @@ library(WGCNA)
 
 #load DESeq2 output and raw data for all cell line
 ```{r}
-base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"# Define the base path
+#base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"# Define the base path
 #all dds
-dds_rdata_files <- list.files(path = base_dir, pattern = "_LRT_res_df.RData$", 
-                          full.names = TRUE, recursive = TRUE)# Find all RData files matching the pattern in subdirectories
+#dds_rdata_files <- list.files(path = base_dir, pattern = "_LRT_res_df.RData$", 
+#                          full.names = TRUE, recursive = TRUE)# Find all RData files matching the pattern in subdirectories
 
-for (file in dds_rdata_files) {
-  load(file)
-  cat("Loaded:", file, "\n")
-}# Load all matching files
+#for (file in dds_rdata_files) {
+#  load(file)
+#  cat("Loaded:", file, "\n")
+#}# Load all matching files
 
 #all DEG
-deg_base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"
+#deg_base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"
 
-deg_rdata_files <- list.files(path = base_dir, pattern = "_rnaseq_list_for_atacseq.RData$", 
-                          full.names = TRUE, recursive = TRUE)
+#deg_rdata_files <- list.files(path = base_dir, pattern = "_rnaseq_list_for_atacseq.RData$", 
+#                          full.names = TRUE, recursive = TRUE)
 
-for (file in deg_rdata_files) {
-  load(file)
-  cat("Loaded:", file, "\n")
-}
+#for (file in deg_rdata_files) {
+#  load(file)
+#  cat("Loaded:", file, "\n")
+#}
 ```
 
-#plot rlog transformed counts heatmap of DEGs of CRNDE
+#plot vst transformed counts heatmap of DEGs of LINC00667
 ```{r}
+load("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/LINC00667/results/LINC00667_rnaseq_list_for_atacseq.RData")
+load("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/LINC00667/results/LINC00667_LRT_res_df.RData")
 load("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/g2s.RData")
-log_counts <- rlog(CRNDE_dds)
+vst_counts <- vst(LINC00667_dds)
 
-CRNDE_rlog_counts <- log_counts[, grepl("CRNDE", colnames(rlog_counts))]
+LINC00667_vst_counts <- vst_counts[, grepl("LINC00667", colnames(vst_counts))]
 
-CRNDE_rlog_counts <- as.data.frame(assay(CRNDE_rlog_counts))
+LINC00667_vst_counts <- as.data.frame(assay(LINC00667_vst_counts))
 
-CRNDE_rlog_counts <- CRNDE_rlog_counts %>% rownames_to_column("gene_id") %>%merge(g2s)
+LINC00667_vst_counts <- LINC00667_vst_counts %>% rownames_to_column("gene_id") %>%merge(g2s)
 
-filtered_CRNDE_rlog_counts <- CRNDE_rlog_counts[CRNDE_rlog_counts$gene_name %in% CRNDE_trend_sig_filtered$gene_name,]
+filtered_LINC00667_vst_counts <- LINC00667_vst_counts[LINC00667_vst_counts$gene_name %in% LINC00667_trend_sig_filtered$gene_name,]
 
-filtered_CRNDE_rlog_counts_long <- filtered_CRNDE_rlog_counts%>%
+filtered_LINC00667_vst_counts_long <- filtered_LINC00667_vst_counts%>%
   pivot_longer(
-    cols = starts_with("CRNDE"),  # Select all columns starting with "CRNDE"
+    cols = starts_with("LINC00667"),  # Select all columns starting with "LINC00667"
     names_to = c("time_point", "replicate"),  # Create new columns for time point and replicate
-    names_pattern = "^CRNDE_(\\d+)_(\\d+)$",  # Use regex to capture time point and replicate
+    names_pattern = "^LINC00667_(\\d+)_(\\d+)$",  # Use regex to capture time point and replicate
     values_to = "log_counts"  # Name the new column for values
   ) %>%
   mutate(
@@ -63,64 +65,33 @@ filtered_CRNDE_rlog_counts_long <- filtered_CRNDE_rlog_counts%>%
     replicate = as.numeric(replicate)  # Convert replicate to numeric
   )
 
-CRNDE_rlog_counts_mean <- filtered_CRNDE_rlog_counts_long %>%
+LINC00667_vst_counts_mean <- filtered_LINC00667_vst_counts_long %>%
   group_by(gene_name, time_point) %>%
   summarise(mean_log_counts = mean(log_counts), .groups = 'drop')
 
 # Ensure time_point is an ordered factor to preserve the sequence
-filtered_CRNDE_rlog_counts_long$time_point <- factor(filtered_CRNDE_rlog_counts_long$time_point, 
+filtered_LINC00667_vst_counts_long$time_point <- factor(filtered_LINC00667_vst_counts_long$time_point, 
                                                      levels = c(0, 2, 4, 8, 16, 24, 48, 96), 
                                                      ordered = TRUE)
 
 # Normalize the data to the 0 timepoint
-filtered_CRNDE_rlog_counts_long <- filtered_CRNDE_rlog_counts_long %>%
+filtered_LINC00667_vst_counts_long <- filtered_LINC00667_vst_counts_long %>%
   group_by(gene_name) %>%
   mutate(normalized_log_counts = log_counts - log_counts[time_point == 0]) %>%
   ungroup()
 
 # Calculate the mean of the normalized log counts per time point
-CRNDE_rlog_counts_mean_normalized <- filtered_CRNDE_rlog_counts_long %>%
+LINC00667_vst_counts_mean_normalized <- filtered_LINC00667_vst_counts_long %>%
   group_by(gene_name, time_point) %>%
   summarise(mean_normalized_log_counts = mean(normalized_log_counts), .groups = 'drop')
 
 # Reshape data for heatmap
-CRNDE_rlog_counts_matrix <- CRNDE_rlog_counts_mean_normalized %>%
+LINC00667_vst_counts_matrix <- LINC00667_vst_counts_mean_normalized %>%
   pivot_wider(names_from = time_point, values_from = mean_normalized_log_counts) %>%
-  column_to_rownames("gene_name")
-
-
-pdf("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig2/CRNDE_deg_rlog_heatmap.pdf", width = 5, height = 5)
-# Plot heatmap
-pheatmap(CRNDE_rlog_counts_matrix, cluster_rows = TRUE, cluster_cols = FALSE, 
-         scale = "none", main = "Heatmap of Normalized Gene Expression")
-
-dev.off()
-
-```
-
-#plot log2FC heatmap of DEGs of CRNDE
-```{r}
-# Add a 0 time_point
-  CRNDE_trend_sig_filtered_zero <- CRNDE_trend_sig_filtered %>%
-    dplyr::select(gene_id, gene_name, baseMean) %>%
-    distinct() %>%
-    mutate(log2FoldChange = 0,
-           timepoint = 0) 
-
-CRNDE_trend_sig_filtered <- CRNDE_trend_sig_filtered %>%
-    bind_rows(CRNDE_trend_sig_filtered_zero)
-
-# converting to matrix for heatmap
-CRNDE_trend_sig_filtered_matrix <- CRNDE_trend_sig_filtered %>%
-  dplyr::select(gene_name, timepoint, log2FoldChange) %>%
-  pivot_wider(names_from = timepoint, names_sort = TRUE, values_from = log2FoldChange) %>%
   column_to_rownames("gene_name") %>%
   as.matrix()
 
-#order
-CRNDE_trend_sig_filtered_matrix <- CRNDE_trend_sig_filtered_matrix[,c("0", "2", "4", "8", "16", "24", "48", "96")]
-
-col_pal10 <- colorRampPalette(colors = c("#43071E",
+col_pal10 <- rev(colorRampPalette(colors = c("#43071E",
                                          "#691D32",
                                          "#923346",
                                          "#BD4B5C",
@@ -134,31 +105,194 @@ col_pal10 <- colorRampPalette(colors = c("#43071E",
                                          "#4272AE",
                                          "#31508C",
                                          "#1E356C",
-                                         "#0E1949"))(100)
+                                         "#0E1949"))(100))
 
+# Calculate the number of rows (genes)
+n_rows <- nrow(LINC00667_vst_counts_matrix)
 
+# Set a target total height for the matrix area (adjust as needed)
+target_total_cell_height <- 300  # e.g., in points
 
-pdf("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig2/CRNDE_deg_lfc_heatmap.pdf", width = 5, height = 30)
+# Compute the dynamic cellheight so that overall cell area remains constant
+cellheight_dynamic <- target_total_cell_height / n_rows
 
-# Generate the heatmap
-pheatmap(CRNDE_trend_sig_filtered_matrix, cluster_cols = FALSE, cluster_rows = TRUE, show_rownames = TRUE, scale = "none",
-                   color = col_pal10,
-                   clustering_distance_rows = "euclidean",
-                   clustering_method = "ward.D",
-                   border_color = NA,
-                   fontsize_row = 5,
-                   cellheight = 6,
-                   cellwidth = 10,
-                   breaks = seq(-5,5, length.out = length(col_pal10)),
-                   treeheight_row = 25)
+# Define the target gene
+target_gene <- "LINC00667"
 
-# Close the PDF device
+# Separate target gene from others
+target_gene_matrix <- LINC00667_vst_counts_matrix[target_gene, , drop = FALSE]
+remaining_genes_matrix <- LINC00667_vst_counts_matrix[setdiff(rownames(LINC00667_vst_counts_matrix), target_gene), ]
+
+# Perform clustering on remaining genes
+gene_dendro <- hclust(dist(remaining_genes_matrix, method = "euclidean"), method = "ward.D2")
+remaining_genes_sorted <- remaining_genes_matrix[gene_dendro$order, ]
+
+# Combine target gene with clustered genes
+LINC00667_vst_counts_matrix <- rbind(target_gene_matrix, remaining_genes_sorted)
+
+pdf("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig2/LINC00667_deg_vst_heatmap.pdf", width = 5, height = 5)
+# Plot heatmap
+pheatmap(LINC00667_vst_counts_matrix,
+         cluster_rows = FALSE,  # Keep our custom order
+         cluster_cols = FALSE,
+         show_rownames = TRUE,
+         scale = "none",
+         color = col_pal10,
+         border_color = NA,
+         fontsize_row = 2,
+         cellwidth = 10,
+         cellheight = cellheight_dynamic,
+         breaks = seq(-5, 5, length.out = length(col_pal10)),
+         main = "Heatmap of Normalized Gene Expression")
+
 dev.off()
 
 ```
 
-##plot tpm heatmap of DEGs of CRNDE
+#plot log2FC heatmap of DEGs of LINC00667
 ```{r}
+# Add a 0 time_point
+  LINC00667_trend_sig_filtered_zero <- LINC00667_trend_sig_filtered %>%
+    dplyr::select(gene_id, gene_name, baseMean) %>%
+    distinct() %>%
+    mutate(log2FoldChange = 0,
+           timepoint = 0) 
+
+LINC00667_trend_sig_filtered <- LINC00667_trend_sig_filtered %>%
+    bind_rows(LINC00667_trend_sig_filtered_zero)
+
+# converting to matrix for heatmap
+LINC00667_trend_sig_filtered_matrix <- LINC00667_trend_sig_filtered %>%
+  dplyr::select(gene_name, timepoint, log2FoldChange) %>%
+  pivot_wider(names_from = timepoint, names_sort = TRUE, values_from = log2FoldChange) %>%
+  column_to_rownames("gene_name") %>%
+  as.matrix()
+
+#order
+LINC00667_trend_sig_filtered_matrix <- LINC00667_trend_sig_filtered_matrix[,c("0", "2", "4", "8", "16", "24", "48", "96")]
+
+# Define your target overall height in pixels (for the heatmap portion)
+target_height_pixels <- 300  # adjust this value as needed
+
+# Calculate the number of rows (genes)
+n_rows <- nrow(LINC00667_trend_sig_filtered_matrix)
+
+# Compute the cell height so that n_rows * cellheight equals target_height_pixels
+# (You might need to subtract an estimated margin if necessary)
+cellheight_dynamic <- target_height_pixels / n_rows
+
+# Define the target gene
+target_gene <- "LINC00667"
+
+# Separate target gene from others
+target_gene_matrix <- LINC00667_trend_sig_filtered_matrix[target_gene, , drop = FALSE]
+remaining_genes_matrix <- LINC00667_trend_sig_filtered_matrix[setdiff(rownames(LINC00667_trend_sig_filtered_matrix), target_gene), ]
+
+# Perform clustering on remaining genes
+gene_dendro <- hclust(dist(remaining_genes_matrix, method = "euclidean"), method = "ward.D2")
+remaining_genes_sorted <- remaining_genes_matrix[gene_dendro$order, ]
+
+# Combine target gene with clustered genes
+LINC00667_trend_sig_filtered_matrix <- rbind(target_gene_matrix, remaining_genes_sorted)
+
+
+# Generate the PDF device with fixed height
+pdf("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig2/LINC00667_deg_lfc_heatmap.pdf", width = 5, height = 5)
+# Plot heatmap
+pheatmap(LINC00667_trend_sig_filtered_matrix,
+         cluster_rows = FALSE,  # Keep our custom order
+         cluster_cols = FALSE,  
+         show_rownames = TRUE,
+         scale = "none",
+         color = col_pal10,
+         border_color = NA,
+         fontsize_row = 2,
+         cellwidth = 10,
+         cellheight = cellheight_dynamic,
+         breaks = seq(-5, 5, length.out = length(col_pal10)),
+         treeheight_row = 5)
+
+dev.off()
+
+```
+
+##plot tpm heatmap of DEGs of LINC00667
+```{r}
+load("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/LINC00667/results/LINC00667_rnaseq_list_for_atacseq.RData")
+LINC00667_tpm <- read.table("/scratch/Shares/rinn/lincxpress/LINC00667/rnaseq/nextflow_results/star_salmon/salmon.merged.gene_tpm.tsv", header=TRUE, row.names=1)
+
+# Filter the gene TPM data to include only the target genes
+LINC00667_filtered_tpm <- LINC00667_tpm %>%
+  filter(gene_name %in% LINC00667_trend_sig_filtered$gene_name)
+
+# Summarize mean TPM for each gene at each time point
+mean_tpm_per_time <- LINC00667_filtered_tpm %>%
+  pivot_longer(cols = starts_with("LINC00667_"), 
+               names_to = c("time_point", "replicate"),
+               names_pattern = "LINC00667_(\\d+)_(\\d+)",
+               values_to = "TPM") %>%
+  group_by(gene_name, time_point) %>%
+  summarize(mean_TPM = mean(TPM, na.rm = TRUE), .groups = "drop")
+
+# Normalize mean TPM values by subtracting the 0 time point values
+mean_tpm_normalized <- mean_tpm_per_time %>%
+  group_by(gene_name) %>%
+  mutate(mean_TPM_normalized = log2(mean_TPM + 1) - log2(mean_TPM[time_point == "0"] + 1)) %>%
+  ungroup()
+
+# Reshape to wide format for heatmap
+LINC00667_mean_tpm <- mean_tpm_normalized %>%
+  select(gene_name, time_point, mean_TPM_normalized) %>%
+  pivot_wider(names_from = time_point, 
+              values_from = mean_TPM_normalized)
+
+# Convert to matrix for heatmap
+LINC00667_mean_tpm_matrix <- as.matrix(LINC00667_mean_tpm[,-1])  # Exclude gene names if in the first column
+rownames(LINC00667_mean_tpm_matrix) <- LINC00667_mean_tpm$gene_name
+
+LINC00667_mean_tpm_matrix <- LINC00667_mean_tpm_matrix[,c("0", "2", "4", "8", "16", "24", "48", "96")]
+
+# Define the target gene
+target_gene <- "LINC00667"
+
+# Separate target gene from others
+target_gene_matrix <- LINC00667_mean_tpm_matrix[target_gene, , drop = FALSE]
+remaining_genes_matrix <- LINC00667_mean_tpm_matrix[setdiff(rownames(LINC00667_mean_tpm_matrix), target_gene), ]
+
+# Perform clustering on remaining genes
+gene_dendro <- hclust(dist(remaining_genes_matrix, method = "euclidean"), method = "ward.D2")
+remaining_genes_sorted <- remaining_genes_matrix[gene_dendro$order, ]
+
+# Combine target gene with clustered genes
+final_tpm_matrix <- rbind(target_gene_matrix, remaining_genes_sorted)
+
+# Define your target overall height in pixels (for the heatmap portion)
+target_height_pixels <- 300  # adjust this value as needed
+
+# Calculate the number of rows (genes)
+n_rows <- nrow(LINC00667_mean_tpm_matrix)
+
+# Compute the cell height so that n_rows * cellheight equals target_height_pixels
+# (You might need to subtract an estimated margin if necessary)
+cellheight_dynamic <- target_height_pixels / n_rows
+
+# Generate the PDF device with fixed height
+pdf("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig2/LINC00667_deg_tpm_heatmap.pdf", width = 5, height = 5)
+# Plot heatmap
+pheatmap(final_tpm_matrix,
+         cluster_rows = FALSE,  # Keep our custom order
+         cluster_cols = FALSE,  
+         show_rownames = TRUE,
+         scale = "none",
+         color = col_pal10,
+         border_color = NA,
+         fontsize_row = 2,
+         cellwidth = 10,
+         cellheight = cellheight_dynamic,
+         breaks = seq(-5, 5, length.out = length(col_pal10)),
+         treeheight_row = 5)
+
+dev.off()
 
 ```
 
