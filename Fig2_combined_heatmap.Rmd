@@ -1,0 +1,201 @@
+---
+title: "Figure2_combined_heatmap"
+author: "ML"
+date: "2025_02_19"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+setwd("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig2")
+library(tidyverse)
+library(pheatmap)
+```
+
+#load all data
+```{r}
+base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"# Define the base path
+#all dds
+dds_rdata_files <- list.files(path = base_dir, pattern = "_LRT_res_df.RData$", 
+                          full.names = TRUE, recursive = TRUE)# Find all RData files matching the pattern in subdirectories
+
+for (file in dds_rdata_files) {
+  load(file)
+  cat("Loaded:", file, "\n")
+}# Load all matching files
+
+#all DEG
+deg_base_dir <- "/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL"
+
+deg_rdata_files <- list.files(path = base_dir, pattern = "_rnaseq_list_for_atacseq.RData$", 
+                          full.names = TRUE, recursive = TRUE)
+
+for (file in deg_rdata_files) {
+  load(file)
+  cat("Loaded:", file, "\n")
+}
+```
+
+#combine DEG list from all cell line
+```{r}
+# Define transgenes
+transgene_list <- c("BANCR", "HULC", "RP11", "CRNDE", "DANCR203", "FENDRR", "LINC00667", 
+                    "LINC01547", "HAGLR", "HEIH", "LINCPINT", "LINCROR", "LNCPRESS1")
+
+# Collect all DEGs from _trend_sig_filtered
+all_degs <- purrr::map_dfr(transgene_list, function(transgene) {
+  df_name <- paste0(transgene, "_trend_sig_filtered")
+  if (exists(df_name)) {
+    get(df_name) %>%
+      dplyr::select(gene_id, gene_name)
+  } else {
+    tibble()
+  }
+}) %>%
+  distinct()
+```
+
+#filter combined DEGs from DESeq results
+```{r}
+# Create a data frame for transgene with all time points, including zero
+BANCR_gene <- BANCR_LRT_lfc %>%
+  filter(gene_name == "BANCR") %>%
+  select(gene_id, gene_name, baseMean,log2FoldChange, timepoint)
+
+
+BANCR_gene_zero <- BANCR_gene %>%
+    dplyr::select(gene_id, gene_name, baseMean) %>%
+    distinct() %>%
+    mutate(log2FoldChange = 0,
+           timepoint = 0)
+
+  BANCR_gene <- BANCR_gene %>%
+    bind_rows(BANCR_gene_zero)
+  
+  #get combined deg data
+  BANCR_trend_sig_filtered <- BANCR_LRT_lfc %>%
+  filter(gene_id %in% all_degs$gene_id)
+  
+  #change log2FC to 0 if padj>0.05
+  BANCR_trend_sig_filtered <- BANCR_trend_sig_filtered %>%
+  mutate(across(starts_with("log2FoldChange"), 
+                ~ ifelse(padj > 0.01, 0, .)))
+  
+BANCR_trend_sig_filtered_zero <- BANCR_trend_sig_filtered %>%
+    dplyr::select(gene_id, gene_name, baseMean) %>%
+    distinct() %>%
+    mutate(log2FoldChange = 0,
+           timepoint = 0)
+
+  # Now bind back to BANCR_trend_sig_filtered
+  BANCR_trend_sig_filtered <- BANCR_trend_sig_filtered %>%
+    bind_rows(BANCR_trend_sig_filtered_zero)
+  
+# Check if transgene is already in BANCR_trend_sig_filtered
+if (!("BANCR" %in% BANCR_trend_sig_filtered$gene_name)) {
+  BANCR_trend_sig_filtered <- bind_rows(BANCR_gene, BANCR_trend_sig_filtered)
+}
+  
+  BANCR_trend_sig_filtered_matrix <- BANCR_trend_sig_filtered %>%
+  dplyr::select(gene_name, timepoint, log2FoldChange) %>%
+  pivot_wider(names_from = timepoint, names_sort = TRUE, values_from = log2FoldChange) %>%
+  column_to_rownames("gene_name") 
+  
+  # Get all objects in the environment
+all_objects <- ls()
+
+# Filter for objects ending with "_trend_sig_filtered_matrix"
+filtered_objects <- all_objects[grepl("_trend_sig_filtered_matrix$", all_objects)]
+
+# Save the filtered objects to an RData file
+save(list = filtered_objects, file = "all_trend_sig_filtered_matrix.RData")
+
+```
+
+#combine all DEGs
+```{r}
+# List of cell lines
+cell_lines <- c("BANCR", "HULC", "RP11", "CRNDE", "DANCR203", "FENDRR", 
+                    "LINC00667", "LINC01547", "HAGLR", "HEIH", 
+                    "LINCPINT", "LINCROR", "LNCPRESS1")
+
+# Initialize an empty list to store data frames
+deg_list <- list()
+
+
+# Loop through each cell line and read the DEG data
+for (cell_line in cell_lines) {
+  # Load the DEG data (replace with your actual loading code)
+  deg_data <- get(paste0(cell_line, "_trend_sig_filtered_matrix"))  # Assuming the data is loaded in this way
+  
+  # Convert row names to a column
+  deg_data <- data.frame(gene_name = rownames(deg_data), deg_data)
+  
+  # Rename columns to include the cell line name
+  colnames(deg_data)[-1] <- paste0(cell_line, "_", colnames(deg_data)[-1])
+  
+  # Add the modified data frame to the list
+  deg_list[[cell_line]] <- deg_data
+}
+# Combine all data frames in the list into one matrix
+combined_degs <- Reduce(function(x, y) merge(x, y, by = "gene_name", all = TRUE), deg_list)
+
+# Set the row names to gene names
+rownames(combined_degs) <- combined_degs$gene_name
+combined_degs$gene_name <- NULL 
+
+# Replace all NA values with 0
+combined_degs <- combined_degs %>%
+  mutate(across(everything(), ~ replace_na(., 0)))
+
+# Get all objects in the environment
+all_objects <- ls()
+
+# Filter for objects ending with "_trend_sig_filtered_matrix"
+filtered_objects <- all_objects[grepl("combined_degs$", all_objects)]
+
+# Save the filtered objects to an RData file
+save(list = filtered_objects, file = "combined_degs.RData")
+
+
+```
+
+#generate heatmap
+```{r}
+# Order genes: Transgenes first, DEGs clustered
+transgene_list <- c("BANCR", "HULC", "RP11-1055B8.4", "CRNDE", "DANCR", "FENDRR", "LINC00667", 
+                    "LINC01547", "HAGLR", "HEIH", "LINC-PINT", "LINC-ROR", "LNCPRESS1")
+target_genes <- rownames(combined_degs)[rownames(combined_degs) %in% transgene_list]
+remaining_genes <- setdiff(rownames(combined_degs), target_genes)
+
+# Cluster only the remaining genes
+gene_dendro <- hclust(dist(combined_degs[remaining_genes, ], method = "euclidean"), method = "centroid")
+sorted_genes <- c(target_genes, remaining_genes[gene_dendro$order])
+
+# Reorder matrix
+combined_degs <- combined_degs[sorted_genes, ]
+
+# Define color palette
+col_pal10 <- rev(colorRampPalette(colors = c("#43071E", "#691D32", "#923346", "#BD4B5C",
+                                             "#D17486", "#E19EB0", "#F0C5D8", "#F8F0FE",
+                                             "#C8D0EF", "#98B1DA", "#6A93C6", "#4272AE",
+                                             "#31508C", "#1E356C", "#0E1949"))(100))
+
+# Save heatmap
+pdf("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig2/combined_deg_lfc_heatmap_padj0.05_log2fc0.pdf", width = 20, height = 20)
+pheatmap(as.matrix(combined_degs),
+         cluster_rows = FALSE,  
+         cluster_cols = FALSE,  
+         show_rownames = TRUE,
+         scale = "none",
+         color = col_pal10,
+         border_color = NA,
+         fontsize_row = 2,
+         cellwidth = 10,
+         cellheight = 1000 / nrow(combined_degs),  
+         breaks = seq(-5, 5, length.out = length(col_pal10)),
+         main = "Combined DEGs log2FC Heatmap")
+dev.off()
+```
+
+
