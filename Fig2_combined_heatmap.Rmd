@@ -138,6 +138,7 @@ for (cell_line in ls(pattern = "_trend_sig_filtered_matrix$")) {
   # Save the modified matrix back to the environment
   assign(cell_line, mat)
 }
+
 ```
 
 #combine all DEGs
