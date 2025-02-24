@@ -72,14 +72,16 @@ BANCR_gene_zero <- BANCR_gene %>%
   BANCR_gene <- BANCR_gene %>%
     bind_rows(BANCR_gene_zero)
   
-  #get combined deg data
-  BANCR_trend_sig_filtered <- BANCR_LRT_lfc %>%
+#get combined deg data
+  #BANCR_trend_sig_filtered <- BANCR_LRT_lfc %>%
+  #filter(gene_id %in% all_degs$gene_id)
+  BANCR_trend_sig_filtered <- BANCR_trend_sig_filtered %>%
   filter(gene_id %in% all_degs$gene_id)
   
-  #change log2FC to 0 if padj>0.05
-  BANCR_trend_sig_filtered <- BANCR_trend_sig_filtered %>%
-  mutate(across(starts_with("log2FoldChange"), 
-                ~ ifelse(padj > 0.01, 0, .)))
+#change log2FC to 0 if padj>0.05
+#BANCR_trend_sig_filtered <- BANCR_trend_sig_filtered %>%
+#mutate(across(starts_with("log2FoldChange"), 
+#              ~ ifelse(padj > 0.01, 0, .)))
   
 BANCR_trend_sig_filtered_zero <- BANCR_trend_sig_filtered %>%
     dplyr::select(gene_id, gene_name, baseMean) %>%
@@ -110,6 +112,32 @@ filtered_objects <- all_objects[grepl("_trend_sig_filtered_matrix$", all_objects
 # Save the filtered objects to an RData file
 save(list = filtered_objects, file = "all_trend_sig_filtered_matrix.RData")
 
+```
+
+##heatmap no sig gene l0g2FC = 0
+```{r}
+# Loop through all matrices in the environment that end with "_trend_sig_filtered_matrix"
+for (cell_line in ls(pattern = "_trend_sig_filtered_matrix$")) {
+  
+  # Get the corresponding "_trend_sig_filtered" object name
+  sig_genes_name <- sub("_matrix$", "", cell_line)  # Remove "_matrix" to get the base name
+  sig_genes_df <- get(sig_genes_name)  # Retrieve the significant gene data frame
+  
+  # Extract gene names from the "gene_name" column
+  sig_genes <- as.character(sig_genes_df$gene_name)
+  
+  # Access the matrix
+  mat <- get(cell_line)
+  
+  # Identify genes that should be kept (either in sig_genes or transgene_list)
+  keep_genes <- unique(c(sig_genes, transgene_list))  # Combine and remove duplicates
+  
+  # Set values to 0 for genes NOT in the keep list
+  mat[!rownames(mat) %in% keep_genes, ] <- 0
+  
+  # Save the modified matrix back to the environment
+  assign(cell_line, mat)
+}
 ```
 
 #combine all DEGs
@@ -169,7 +197,7 @@ target_genes <- rownames(combined_degs)[rownames(combined_degs) %in% transgene_l
 remaining_genes <- setdiff(rownames(combined_degs), target_genes)
 
 # Cluster only the remaining genes
-gene_dendro <- hclust(dist(combined_degs[remaining_genes, ], method = "euclidean"), method = "centroid")
+gene_dendro <- hclust(dist(combined_degs[remaining_genes, ], method = "euclidean"), method = "ward.D2")
 sorted_genes <- c(target_genes, remaining_genes[gene_dendro$order])
 
 # Reorder matrix
@@ -182,7 +210,7 @@ col_pal10 <- rev(colorRampPalette(colors = c("#43071E", "#691D32", "#923346", "#
                                              "#31508C", "#1E356C", "#0E1949"))(100))
 
 # Save heatmap
-pdf("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig2/combined_deg_lfc_heatmap_padj0.05_log2fc0.pdf", width = 20, height = 20)
+pdf("/scratch/Shares/rinn/ML/RNAseq_FULL_MODEL/paper_figures/Fig2/combined_deg_lfc_heatmap_na_not_deg.pdf", width = 20, height = 20)
 pheatmap(as.matrix(combined_degs),
          cluster_rows = FALSE,  
          cluster_cols = FALSE,  
